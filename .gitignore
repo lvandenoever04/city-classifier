@@ -1,0 +1,15 @@
+# Python virtual environment
+.venv/
+
+# Downloaded and generated data 
+data/
+
+# Python cache files
+__pycache__/
+
+# osmnx download cache
+cache/
+
+# Logs
+*.log 
+download_log.txt
