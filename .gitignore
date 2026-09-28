@@ -13,3 +13,4 @@ cache/
 # Logs
 *.log 
 download_log.txt
+*_log.txt

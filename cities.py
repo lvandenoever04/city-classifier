@@ -1,26 +1,27 @@
-CITIES = {
-    # Cities with a useable official boundary
-    "new_york": {"query": "New York City, New York, United States"},
-    "chicago": {"query": "Chicago, Illinois, United States"},
-    "barcelona": {"query": "Barcelona, Spain"},
-    "san_francisco": {"query": "San Francisco, California, United States"},
-    "london": {"query": "Greater London, United Kingdom"},
-    "paris": {"query": "Paris, France"},
-    "berlin": {"query": "Berlin, Germany"},
-    "madrid": {"query": "Madrid, Comunidad de Madrid, Spain"},
-    "singapore": {"query": "Singapore, Singapore"},
-    "amsterdam": {"query": "Amsterdam, Netherlands"},
-    "vienna": {"query": "Vienna, Austria"},
-    "seoul": {"query": "Seoul, South Korea"},
-    "bangkok": {"query": "Bangkok, Thailand"},
-    "vancouver": {"query": "Vancouver, British Columbia, Canada"},
-    "stockholm": {"query": "Stockholm, Sweden"},
+# Every city is a circle of RADIUS_KM around a chosen centre (latitude, longitude).
+RADIUS_KM = 7
 
-    # Cities without a useable official boundary (drawing a radius from a centre)
-    "tokyo": {"center": (35.6812, 139.7671), "radius_km": 12},
-    "beijing": {"center": (39.9055, 116.3976), "radius_km": 12},
-    "istanbul": {"center": (41.0165, 28.9730), "radius_km": 12},
-    "moscow": {"center": (55.7520, 37.6175), "radius_km": 12},
-    "sydney": {"center": (-33.8731, 151.2065), "radius_km": 12},
-    
+CENTRES = {
+    "amsterdam":     (52.3650, 4.8900),  
+    "bangkok":       (13.7400, 100.5300), 
+    "barcelona":     (41.3980, 2.1600),    
+    "beijing":       (39.9100, 116.3970), 
+    "berlin":        (52.5200, 13.4050),   
+    "chicago":       (41.8800, -87.6700),  
+    "istanbul":      (41.0400, 28.9600),  
+    "london":        (51.5073, -0.1276),   
+    "madrid":        (40.4200, -3.6900),   
+    "moscow":        (55.7520, 37.6175),   
+    "new_york":      (40.7300, -73.9700),  
+    "paris":         (48.8566, 2.3522),    
+    "san_francisco": (37.7650, -122.4350), 
+    "seoul":         (37.5450, 127.0000),  
+    "singapore":     (1.3150, 103.8600),  
+    "stockholm":     (59.3400, 18.0500),   
+    "sydney":        (-33.8950, 151.1900),  
+    "tokyo":         (35.6950, 139.7350),   
+    "vancouver":     (49.2550, -123.1000), 
+    "vienna":        (48.2000, 16.3600),   
 }
+
+CITIES = {name: {"center": c, "radius_km": RADIUS_KM} for name, c in CENTRES.items()}
