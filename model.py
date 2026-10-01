@@ -4,7 +4,7 @@ from torchvision.models import resnet18, ResNet18_Weights
 MEAN = 0.45 
 STD = 0.225
 
-class Normalize(nn.module):
+class Normalize(nn.Module):
     """Rescale pixels to the range the pretrained network was trained on."""
     def forward(self, x):
         return (x - MEAN) / STD
