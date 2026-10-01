@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beat the Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --ink:#1a1a1a; --muted:#666; --line:#ddd;
+          --good:#2e7d32; --bad:#c62828; --accent:#1f4fd1;
+          --img: 52vh; --side: 520px; --gap: 20px; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141414; --card:#1f1f1f; --ink:#eee; --muted:#aaa; --line:#3a3a3a;
+            --good:#66bb6a; --bad:#ef5350; --accent:#7aa2ff; }
+  }
+  html { scrollbar-gutter: stable; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Newsreader", Georgia, "Times New Roman", serif; line-height: 1.3;
+         background: var(--bg); color: var(--ink); }
+  a { color: inherit; }
+  main { max-width: calc(var(--img) + var(--side) + var(--gap) + 32px); margin: 0 auto; padding: 16px; }
+  h1 { font-size: 2.4rem; font-weight: 400; margin: 8px 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .levels { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .level { padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+           color: var(--ink); cursor: pointer; font: inherit; }
+  .level.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #progress { color: var(--muted); margin-left: 8px; }
+  #newgame { margin-left: auto; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+             background: transparent; color: var(--ink); cursor: pointer; font: inherit; }
+  .scores, .game { display: grid; grid-template-columns: var(--img) minmax(0, 1fr); gap: var(--gap); }
+  .scores { margin-bottom: 16px; }
+  .game { align-items: start; }
+  @media (max-width: 760px) {
+    .game { grid-template-columns: 1fr; }
+    .scores { grid-template-columns: 1fr 1fr; }
+  }
+  .score { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .score .label { color: var(--muted); font-size: .85rem; }
+  .score .value { font-size: 1.5rem; font-weight: 600; }
+  .view { position: relative; width: 100%; }
+  #tile { display: block; width: 100%; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  #frame { position: absolute; border: 2px solid var(--accent); pointer-events: none; }
+  #viewinfo { margin-top: 16px; margin-bottom: 0; min-height: 2.6em; }
+  .buttons { display: grid; grid-template-columns: repeat(2, 1fr); grid-auto-flow: column; gap: 6px; }
+  .city { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card);
+          color: var(--ink); cursor: pointer; text-align: left; font: inherit; }
+  .city:hover:enabled { border-color: var(--accent); }
+  .city:disabled { cursor: default; }
+  .city.correct { outline: 2px solid var(--good); border-color: var(--good); }
+  .city.wrong { outline: 2px solid var(--bad); border-color: var(--bad); }
+  #result { min-height: 3.5em; margin: 14px 0; line-height: 1.4; }
+  #next { padding: 10px 16px; border: 0; border-radius: 6px; background: var(--accent); color: #fff;
+          cursor: pointer; font: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Beat the model</h1>
+  <p class="sub">Hi! I've built a CNN (convolutional neural network) which has been trained to look at a section of a city's figure-ground diagram and guess the name of the city it belongs to. The thing is, it isn't very accurate, which left some room for me to create this guessing game. Guess which of 20 cities each patch of buildings comes from, then see what the neural network said!
+     The model always sees only a 500 m × 500 m square, but you can toggle the difficulty to expand your vision.
+     Building data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>,
+     via <a href="https://extract.bbbike.org/">BBBike extracts</a>.</p>
+
+  <div class="levels">
+    <button class="level" data-level="easy">Easy (2 km)</button>
+    <button class="level" data-level="medium">Medium (1 km)</button>
+    <button class="level" data-level="hard">Hard (500 m)</button>
+    <span id="progress"></span>
+    <button id="newgame">New game</button>
+  </div>
+
+  <div class="scores">
+    <div class="score"><div class="label">You</div><div class="value" id="you"></div></div>
+    <div class="score"><div class="label">Model</div><div class="value" id="model"></div></div>
+  </div>
+
+  <div class="game">
+    <div>
+      <div class="view">
+        <img id="tile" alt="Figure-ground map to identify">
+        <div id="frame"></div>
+      </div>
+      <p class="sub" id="viewinfo"></p>
+    </div>
+    <div>
+      <div class="buttons" id="buttons"></div>
+      <div id="result"></div>
+      <button id="next" hidden>Next tile →</button>
+    </div>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script>
+  const LEVELS = { easy: 2000, medium: 1000, hard: 500 };
+  const pretty = c => c.split("_").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+  const pct = (right, n) => n ? Math.round(100 * right / n) + "%" : "–";
+
+  function shuffle(items) {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [items[i], items[j]] = [items[j], items[i]];
+    }
+    return items;
+  }
+
+  let level = "hard", order = [], round = 0, played = 0, youRight = 0, modelRight = 0;
+
+  const buttons = {};
+  for (const city of CITIES) {
+    const b = document.createElement("button");
+    b.className = "city";
+    b.onclick = () => guess(city);
+    document.getElementById("buttons").append(b);
+    buttons[city] = b;
+  }
+  document.getElementById("buttons").style.gridTemplateRows = `repeat(${Math.ceil(CITIES.length / 2)}, auto)`;
+
+  document.querySelectorAll(".level").forEach(b => b.onclick = () => setLevel(b.dataset.level));
+  document.getElementById("newgame").onclick = newGame;
+
+  function setLevel(newLevel) {
+    level = newLevel;
+    document.querySelectorAll(".level").forEach(b => b.classList.toggle("active", b.dataset.level === level));
+
+    const frac = LEVELS.hard / LEVELS[level];
+    const frame = document.getElementById("frame");
+    frame.hidden = level === "hard";
+    frame.style.width = frame.style.height = `${frac * 100}%`;
+    frame.style.left = frame.style.top = `${(1 - frac) / 2 * 100}%`;
+    document.getElementById("viewinfo").textContent = level === "hard"
+      ? "You see exactly what the model sees: 500 m × 500 m."
+      : `You see ${LEVELS[level] / 1000} km × ${LEVELS[level] / 1000} km. The model only sees the outlined 500 m square.`;
+
+    if (round < order.length) {
+      document.getElementById("tile").src = order[round].tiles[level];
+    }
+  }
+
+  function newGame() {
+    order = shuffle([...ROUNDS]);
+    round = 0; played = 0; youRight = 0; modelRight = 0;
+    updateScores();
+    show();
+  }
+
+  function updateScores() {
+    document.getElementById("you").textContent = `${youRight} / ${played}  (${pct(youRight, played)})`;
+    document.getElementById("model").textContent = `${modelRight} / ${played}  (${pct(modelRight, played)})`;
+  }
+
+  function show() {
+    const r = order[round];
+    document.getElementById("tile").src = r.tiles[level];
+    document.getElementById("progress").textContent = `Tile ${round + 1} of ${order.length}`;
+    document.getElementById("result").textContent = "";
+    document.getElementById("next").hidden = true;
+    for (const [city, b] of Object.entries(buttons)) {
+      b.disabled = false;
+      b.className = "city";
+      b.textContent = pretty(city);
+    }
+  }
+
+  function guess(city) {
+    const r = order[round];
+    const youOk = city === r.answer;
+    const modelOk = r.model === r.answer;
+    played += 1;
+    youRight += youOk ? 1 : 0;
+    modelRight += modelOk ? 1 : 0;
+
+    for (const b of Object.values(buttons)) b.disabled = true;
+    buttons[r.answer].classList.add("correct");
+    buttons[r.answer].textContent = "✓ " + pretty(r.answer);
+    if (!youOk) {
+      buttons[city].classList.add("wrong");
+      buttons[city].textContent = "✗ " + pretty(city);
+    }
+
+    const verdict = youOk && !modelOk ? "You beat the model on this one!"
+                  : !youOk && modelOk ? "The model got this one."
+                  : youOk ? "You both got it."
+                  : "You both missed it.";
+    document.getElementById("result").innerHTML =
+      `It was <b>${pretty(r.answer)}</b>. The model guessed <b>${pretty(r.model)}</b> ` +
+      `(${Math.round(r.confidence * 100)}% sure). ${verdict}`;
+    updateScores();
+
+    const next = document.getElementById("next");
+    next.hidden = false;
+    next.textContent = round + 1 < order.length ? "Next tile →" : "See final score";
+  }
+
+  document.getElementById("next").onclick = () => {
+    round += 1;
+    if (round < order.length) {
+      show();
+    } else {
+      document.getElementById("next").hidden = true;
+      document.getElementById("result").innerHTML =
+        `<b>Final score</b>: you ${pct(youRight, played)}, the model ${pct(modelRight, played)}.`;
+    }
+  };
+
+  setLevel("hard");
+  newGame();
+</script>
+</body>
+</html>
