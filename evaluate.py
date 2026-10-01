@@ -13,10 +13,24 @@ from torch.utils.data import DataLoader
 from dataset import TileDataset
 from model import build_model
 
+def predict(model, x, tta=False):
+    """City probabilities for a batch; with tta, averaged over all 8 rotations/mirrors."""
+    if not tta:
+        return model(x).softmax(1)
+    total = 0
+    for k in range(4):
+        for mirror in (False, True):
+            view = torch.rot90(x, k, dims=(2, 3))
+            if mirror:
+                view = view.flip(3)
+            total = total + model(view).softmax(1)
+    return total / 8
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default="checkpoints/d4.pt")
     parser.add_argument("--split", choices=["val", "test"], default="val")
+    parser.add_argument("--tta", action="store_true", help="average over 8 rotations/mirrors")
     args = parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else  "cpu"
@@ -35,8 +49,8 @@ if __name__ == "__main__":
     preds, targets = [], []
     with torch.no_grad():
         for x, y in loader:
-            logits = model(x.to(device))
-            preds.append(logits.argmax(1).cpu())
+            probs = predict(model, x.to(device), args.tta)
+            preds.append(probs.argmax(1).cpu())
             targets.append(y)
     preds = torch.cat(preds).numpy()
     targets = torch.cat(targets).numpy()
@@ -62,7 +76,7 @@ if __name__ == "__main__":
 
     out = Path("results")
     out.mkdir(exist_ok=True)
-    name = f"{Path(args.checkpoint).stem}_{args.split}"
+    name = f"{Path(args.checkpoint).stem}_{args.split}{'_tta' if args.tta else ''}"
     table.to_csv(out / f"{name}_per_city.csv", index=False)
 
     fig, ax = plt.subplots(figsize=(11, 10))
